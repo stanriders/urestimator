@@ -1,0 +1,144 @@
+﻿@page "/profile/{_paramUsername?}/{_paramMode?}"
+@using UREstimator.Client.Models
+@using UREstimator.Shared
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+@if (_currentPlayer != null)
+{
+    <PageTitle>@_currentPlayer.Username</PageTitle>
+}
+else
+{
+    <PageTitle>Profile</PageTitle>
+}
+
+<MudPaper Class="ma-4 pa-4">
+    <MudForm @ref="_form" @bind-IsValid="@_validInput">
+        <MudGrid Spacing="2" Justify="Justify.SpaceBetween">
+            <MudItem xs="12">
+                <MudTextField T="string" 
+                              Label="Username" 
+                              Required="true" 
+                              RequiredError="User name is required!" 
+                              @ref="_username" 
+                              MaxLength="16" 
+                              Value="@_paramUsername" />
+            </MudItem>
+            <MudItem xs="2">
+                <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading || !_validInput)">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Loading...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Calculate</MudText>
+                    }
+                </MudButton>
+            </MudItem>
+            <MudItem xs="1">
+                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                    <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
+                    <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
+                    <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+    
+@if (_estimations != null)
+{
+    <MudPaper Class="ma-4 pa-4">
+        <a href="https://osu.ppy.sh/u/@_currentPlayer!.Id" class="d-inline-flex align-center">
+            <MudAvatar Class="mr-2"><MudImage Src="@_currentPlayer.AvatarUrl"/></MudAvatar>
+            <MudText Typo="Typo.h4" Class="my-2">@_currentPlayer.Username</MudText>
+        </a>
+        <MudText Typo="Typo.h5">Average profile unstable rate: @_globalEstimation?.ToString("N4")</MudText>
+        <MudDataGrid Items="@_estimations" Dense="true" Hover="true">
+            <Columns>
+                <TemplateColumn Title="Map">
+                    <CellTemplate>
+                        <MudStack Row>
+                            <a href="https://osu.ppy.sh/b/@context.Item.BeatmapId">@context.Item.Title</a>
+                            @foreach (var mod in @context.Item.Mods)
+                            {
+                                <MudText>@mod</MudText>
+                            }
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.UnstableRate" Title="Unstable rate estimation" Format="N4"/>
+                <PropertyColumn Property="x => x.Pp" Title="PP" Format="N1"/>
+            </Columns>
+
+        </MudDataGrid>
+    </MudPaper>
+}
+
+@code {
+    private ScoreModel[]? _estimations;
+    private Player? _currentPlayer;
+    private double? _globalEstimation;
+    
+    private bool _loading;
+    private bool _validInput;
+
+    MudForm? _form;
+    MudTextField<string>? _username;
+    private string _mode = "osu";
+
+    [Parameter]
+    public string? _paramUsername { get; set; }
+    
+    [Parameter]
+    public string? _paramMode { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_paramUsername != null)
+        {
+            if (_username != null)
+                _username.Value = _paramUsername;
+
+            if (_paramMode != null)
+            {
+                _mode = _paramMode;
+            }
+
+            await LoadUser();
+        }
+    }
+
+    private void Submit()
+    {
+        _form?.Validate();
+        
+        Navigation.NavigateTo($"/profile/{_username?.Value}/{_mode}");
+    }
+
+    private async Task LoadUser()
+    {
+        _loading = true;
+
+        var scores = await Http.GetFromJsonAsync<Score[]>($"osuapi/player/{_paramUsername ?? _username?.Value}/{_mode}");
+        if (scores is { Length: > 0 })
+        {
+            _currentPlayer = scores[0].User;
+
+            _estimations = scores.Select(x => new ScoreModel
+            {
+                Mods = x.Mods,
+                Title = $"{x.BeatmapSet?.Artist} - {x.BeatmapSet?.Title} [{x.BeatmapShort?.Version}]",
+                UnstableRate = Calculator.CalculateDeviation(x),
+                BeatmapId = x.BeatmapShort?.Id ?? 0,
+                Pp = x.Pp ?? 0
+            }).ToArray();
+
+            _globalEstimation = _estimations?.Select(x => x.UnstableRate).Average();
+        }
+        _loading = false;
+    }
+}

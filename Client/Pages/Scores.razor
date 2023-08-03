@@ -1,0 +1,108 @@
+﻿@page "/score/{_paramScoreId:long?}/{_paramMode?}"
+@using UREstimator.Shared
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Score</PageTitle>
+
+<MudPaper Class="ma-4 pa-4">
+    <MudForm @ref="_form" @bind-IsValid="@_validInput">
+        <MudGrid Spacing="2" Justify="Justify.SpaceBetween">
+            <MudItem xs="12">
+                <MudTextField T="long?" 
+                              Label="Score ID" 
+                              Required="true" 
+                              RequiredError="Score ID is required!" 
+                              @ref="_scoreId" 
+                              InputMode="InputMode.numeric"/>
+            </MudItem>
+            <MudItem xs="2">
+                <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading || !_validInput)">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Loading...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Calculate</MudText>
+                    }
+                </MudButton>
+            </MudItem>
+            <MudItem>
+                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                    <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
+                    <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
+                    <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@if (_estimation != null && _score != null)
+{
+    <MudPaper Class="ma-4 pa-4">
+
+        <a href="https://osu.ppy.sh/b/@_score.BeatmapShort?.Id" class="d-inline-flex align-center">
+            <MudAvatar Class="mr-2"><MudImage Src="@_score.BeatmapSet?.Covers?.List"/></MudAvatar>
+            <MudText Typo="Typo.h4" Class="my-2">@($"{_score.BeatmapSet?.Artist} - {_score.BeatmapSet?.Title} [{_score.BeatmapShort?.Version}]")</MudText>
+        </a>
+        <MudText Typo="Typo.h5">Unstable rate estimation: @_estimation?.ToString("N4")</MudText>
+    </MudPaper>
+}
+
+@code {
+    private bool _loading;
+    private bool _validInput;
+
+    private double? _estimation;
+    private Score? _score;
+
+    MudForm? _form;
+    MudTextField<long?>? _scoreId;
+    private string _mode = "osu";
+
+    [Parameter]
+    public long? _paramScoreId { get; set; }
+
+    [Parameter]
+    public string? _paramMode { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_paramScoreId != null)
+        {
+            if (_scoreId != null)
+                _scoreId.Value = _paramScoreId.Value;
+
+            if (_paramMode != null)
+            {
+                _mode = _paramMode;
+            }
+
+            await LoadScore();
+        }
+    }
+
+    private void Submit()
+    {
+        _form?.Validate();
+
+        Navigation.NavigateTo($"/score/{_scoreId?.Value}/{_mode}");
+    }
+
+    private async Task LoadScore()
+    {
+        _loading = true;
+        var score = await Http.GetFromJsonAsync<Score>($"osuapi/score/{_paramScoreId ?? _scoreId?.Value}/{_mode}");
+
+        if (score != null)
+        {
+            _estimation = Calculator.CalculateDeviation(score);
+            _score = score;
+        }
+
+        _loading = false;
+    }
+}

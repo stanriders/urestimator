@@ -1,0 +1,21 @@
+version: '3.8'
+
+networks:
+  main:
+
+services:
+  backend:
+    build: ./Server/.
+    ports:
+      - "127.0.0.1:7891:3001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:3001
+      - ApiV2Client=
+      - ApiV2Secret=
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./keys:/root/.aspnet/DataProtection-Keys
+    networks:
+      - main
+      - logs
