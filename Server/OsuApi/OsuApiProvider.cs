@@ -95,6 +95,58 @@ namespace UREstimator.Server.OsuApi
             });
         }
 
+        public async Task<LeaderboardPlayer[]?> GetLeaderboard(string mode)
+        {
+            await RefreshToken();
+
+            var client = _httpClientFactory.CreateClient("OsuApi");
+            client.DefaultRequestHeaders.Add(HttpRequestHeader.Authorization.ToString(),
+                $"Bearer {_accessToken?.Token}");
+
+            var leaderboard = await _memoryCache.GetOrCreateAsync($"leaderboard_{mode}", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
+
+                var response =
+                    await client.GetFromJsonAsync<Leaderboard>($"/api/v2/rankings/{mode}/performance?cursor[page]=0");
+
+                return response;
+            });
+
+            if (leaderboard == null)
+                return null;
+
+            var leaderboardPlayers = new List<LeaderboardPlayer>();
+
+            foreach (var ranking in leaderboard.Ranking)
+            {
+                leaderboardPlayers.Add(new LeaderboardPlayer
+                {
+                    Player = ranking.Player,
+                    Scores = await _memoryCache.GetOrCreateAsync($"player_scores_{mode}_{ranking.Player.Id}", async entry =>
+                    {
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
+
+                        try
+                        {
+                            var playerScores = await client.GetFromJsonAsync<Score[]>(
+                                $"/api/v2/users/{ranking.Player.Id}/scores/best?&limit=100&mode={mode}");
+
+                            return playerScores;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError(e, e.ToString());
+                        }
+
+                        return null;
+                    })
+                });
+            }
+
+            return leaderboardPlayers.ToArray();
+        }
+
         private async Task RefreshToken()
         {
             if (_accessToken is not null && !_accessToken.Expired)

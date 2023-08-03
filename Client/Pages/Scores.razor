@@ -16,7 +16,14 @@
                               @ref="_scoreId" 
                               InputMode="InputMode.numeric"/>
             </MudItem>
-            <MudItem xs="2">
+            <MudItem Style="min-width: 150px;">
+                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                    <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
+                    <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
+                    <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem>
                 <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading || !_validInput)">
                     @if (_loading)
                     {
@@ -29,13 +36,6 @@
                     }
                 </MudButton>
             </MudItem>
-            <MudItem>
-                <MudSelect @bind-Value="_mode" Label="Gamemode">
-                    <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
-                    <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
-                    <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
-                </MudSelect>
-            </MudItem>
         </MudGrid>
     </MudForm>
 </MudPaper>
@@ -43,12 +43,11 @@
 @if (_estimation != null && _score != null)
 {
     <MudPaper Class="ma-4 pa-4">
-
-        <a href="https://osu.ppy.sh/b/@_score.BeatmapShort?.Id" class="d-inline-flex align-center">
+        <a href="https://osu.ppy.sh/b/@_score.BeatmapShort?.Id" class="d-inline-flex align-center mb-2">
             <MudAvatar Class="mr-2"><MudImage Src="@_score.BeatmapSet?.Covers?.List"/></MudAvatar>
-            <MudText Typo="Typo.h4" Class="my-2">@($"{_score.BeatmapSet?.Artist} - {_score.BeatmapSet?.Title} [{_score.BeatmapShort?.Version}]")</MudText>
+            <MudText Typo="Typo.h4">@($"{_score.BeatmapSet?.Artist} - {_score.BeatmapSet?.Title} [{_score.BeatmapShort?.Version}]")</MudText>
         </a>
-        <MudText Typo="Typo.h5">Unstable rate estimation: @_estimation?.ToString("N4")</MudText>
+        <MudText Typo="Typo.h5" Class="mb-2">Unstable rate estimation: @_estimation?.ToString("N3")</MudText>
     </MudPaper>
 }
 
@@ -85,9 +84,9 @@
         }
     }
 
-    private void Submit()
+    private async Task Submit()
     {
-        _form?.Validate();
+        await _form!.Validate();
 
         Navigation.NavigateTo($"/score/{_scoreId?.Value}/{_mode}");
     }

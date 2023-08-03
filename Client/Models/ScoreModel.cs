@@ -7,5 +7,6 @@
         public string[] Mods { get; set; }
         public ulong BeatmapId { get; set; }
         public double Pp { get; set; }
+        public double Accuracy { get; set; }
     }
 }

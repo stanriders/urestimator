@@ -1,0 +1,108 @@
+﻿@page "/leaderboard/{_paramMode?}"
+@using UREstimator.Client.Models
+@using UREstimator.Shared
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Leaderboard - @_mode</PageTitle>
+
+<MudPaper Class="ma-4 pa-4">
+    <MudForm @ref="_form">
+        <MudGrid Spacing="2" Justify="Justify.SpaceBetween">
+            <MudItem Style="min-width: 150px;">
+                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                    <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
+                    <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
+                    <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem>
+                <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading)">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Loading...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Calculate</MudText>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@if (_estimations != null)
+{
+    <MudPaper Class="ma-4 pa-4">
+        <MudDataGrid Items="@_estimations" Dense="true" Hover="true">
+            <Columns>
+                <PropertyColumn Property="x => x.Player.Username" Title="Player" />
+                <PropertyColumn Property="x => x.AverageEstimate" Title="Unstable rate estimation" Format="N3" />
+                <PropertyColumn Property="x => x.WeightedEstimate" Title="Weighted unstable rate estimation" Format="N1" />
+            </Columns>
+
+        </MudDataGrid>
+    </MudPaper>
+}
+
+@code {
+    private LeaderboardModel[]? _estimations;
+
+    private bool _loading;
+
+    MudForm? _form;
+    private string _mode = "osu";
+
+    [Parameter]
+    public string? _paramMode { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_paramMode != null)
+        {
+            _mode = _paramMode;
+
+            await LoadLeadeboard();
+        }
+    }
+
+    private async Task Submit()
+    {
+        await _form!.Validate();
+
+        Navigation.NavigateTo($"/leaderboard/{_mode}");
+    }
+
+    private async Task LoadLeadeboard()
+    {
+        _loading = true;
+
+        var players = await Http.GetFromJsonAsync<LeaderboardPlayer[]>($"osuapi/leaderboard/{_mode}");
+        if (players is { Length: > 0 })
+        {
+            var result = new List<LeaderboardModel>();
+
+            foreach (var player in players)
+            {
+                var estimations = new List<double>();
+                foreach (var score in player.Scores)
+                {
+                    estimations.Add(Calculator.CalculateDeviation(score));
+                }
+                
+                var index = 0;
+                result.Add(new LeaderboardModel
+                {
+                    Player = player.Player,
+                    AverageEstimate = estimations.Average(),
+                    WeightedEstimate = estimations.Sum(x => Math.Pow(0.95, index++) * x) / 19.8815894156
+                });
+            }
+
+            _estimations = result.ToArray();
+        }
+        _loading = false;
+    }
+}

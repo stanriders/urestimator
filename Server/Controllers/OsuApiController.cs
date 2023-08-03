@@ -27,5 +27,11 @@ namespace UREstimator.Server.Controllers
         {
             return _provider.GetScore(id, mode);
         }
+
+        [HttpGet("leaderboard/{mode}")]
+        public Task<LeaderboardPlayer[]?> GetLeaderboard([Required] string mode)
+        {
+            return _provider.GetLeaderboard(mode);
+        }
     }
 }
