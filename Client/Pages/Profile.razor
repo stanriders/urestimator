@@ -1,6 +1,7 @@
 ﻿@page "/profile/{_paramUsername?}/{_paramMode?}"
 @using UREstimator.Client.Models
 @using UREstimator.Shared
+@using System.ComponentModel.DataAnnotations
 @inject HttpClient Http
 @inject NavigationManager Navigation
 
@@ -14,29 +15,24 @@ else
 }
 
 <MudPaper Class="ma-4 pa-4">
-    <MudForm @ref="_form" @bind-IsValid="@_validInput">
+    <EditForm Model="@_model" OnValidSubmit="Submit">
+        <DataAnnotationsValidator/>
         <MudGrid Spacing="2" Justify="Justify.SpaceBetween">
             <MudItem xs="12">
-                <MudTextField T="string" 
-                              Label="Username" 
-                              Required="true" 
-                              RequiredError="User name is required!" 
-                              @ref="_username" 
-                              MaxLength="16" 
-                              Value="@_paramUsername" />
+                <MudTextField Label="Username" @bind-Value="_model.Username" For="@(() => _model.Username)" />
             </MudItem>
             <MudItem Style="min-width: 150px;">
-                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                <MudSelect @bind-Value="_model.Mode" For="@(() => _model.Mode)" Label="Gamemode">
                     <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
                     <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
                     <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem>
-                <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading || !_validInput)">
+                <MudButton ButtonType="ButtonType.Submit" Class="mt-1" Variant="Variant.Filled" Disabled="@(_loading)">
                     @if (_loading)
                     {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
                         <MudText Class="ms-2">Loading...</MudText>
                     }
                     else
@@ -46,7 +42,7 @@ else
                 </MudButton>
             </MudItem>
         </MudGrid>
-    </MudForm>
+    </EditForm>
 </MudPaper>
     
 @if (_estimations != null)
@@ -90,11 +86,8 @@ else
     private double? _globalWeightedEstimation;
     
     private bool _loading;
-    private bool _validInput;
-
-    MudForm? _form;
-    MudTextField<string>? _username;
-    private string _mode = "osu";
+    
+    private readonly Form _model = new();
 
     [Parameter]
     public string? _paramUsername { get; set; }
@@ -102,34 +95,43 @@ else
     [Parameter]
     public string? _paramMode { get; set; }
 
+    private class Form
+    {
+        [Required(ErrorMessage = "Username is required!")]
+        [StringLength(16, MinimumLength = 3, ErrorMessage = "Invalid username length")]
+        [RegularExpression(@"^[A-Za-z0-9-\[\]_ ]+$", ErrorMessage = "Invalid username")]
+        public string? Username { get; set; }
+
+        [Required]
+        public string Mode { get; set; } = "osu";
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (_paramUsername != null)
         {
-            if (_username != null)
-                _username.Value = _paramUsername;
+            _model.Username = _paramUsername;
 
             if (_paramMode != null)
             {
-                _mode = _paramMode;
+                _model.Mode = _paramMode;
             }
 
             await LoadUser();
         }
     }
 
-    private async Task Submit()
+    private void Submit(EditContext context)
     {
-        await _form!.Validate();
-        
-        Navigation.NavigateTo($"/profile/{_username?.Value}/{_mode}");
+        StateHasChanged();
+        Navigation.NavigateTo($"/profile/{_model.Username}/{_model.Mode}");
     }
 
     private async Task LoadUser()
     {
         _loading = true;
 
-        var scores = await Http.GetFromJsonAsync<Score[]>($"osuapi/player/{_paramUsername ?? _username?.Value}/{_mode}");
+        var scores = await Http.GetFromJsonAsync<Score[]>($"osuapi/player/{_paramUsername ?? _model.Username}/{_model.Mode}");
         if (scores is { Length: > 0 })
         {
             _currentPlayer = scores[0].User;

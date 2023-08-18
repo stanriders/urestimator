@@ -1,30 +1,30 @@
 ﻿@page "/score/{_paramScoreId:long?}/{_paramMode?}"
 @using UREstimator.Shared
+@using Microsoft.AspNetCore.Components
+@using System.ComponentModel.DataAnnotations
 @inject HttpClient Http
 @inject NavigationManager Navigation
 
 <PageTitle>Score</PageTitle>
 
 <MudPaper Class="ma-4 pa-4">
-    <MudForm @ref="_form" @bind-IsValid="@_validInput">
+    <EditForm Model="@_model" OnValidSubmit="Submit">
+        <DataAnnotationsValidator />
         <MudGrid Spacing="2" Justify="Justify.SpaceBetween">
             <MudItem xs="12">
-                <MudTextField T="long?" 
-                              Label="Score ID" 
-                              Required="true" 
-                              RequiredError="Score ID is required!" 
-                              @ref="_scoreId" 
+                <MudTextField Label="Score ID"
+                              @bind-Value="_model.ScoreId" For="@(() => _model.ScoreId)"
                               InputMode="InputMode.numeric"/>
             </MudItem>
             <MudItem Style="min-width: 150px;">
-                <MudSelect @bind-Value="_mode" Label="Gamemode">
+                <MudSelect @bind-Value="_model.Mode" For="@(() => _model.Mode)" Label="Gamemode">
                     <MudSelectItem Value="@("osu")">osu!</MudSelectItem>
                     <MudSelectItem Value="@("taiko")">Taiko</MudSelectItem>
                     <MudSelectItem Value="@("mania")">Mania</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem>
-                <MudButton Class="mt-1" Variant="Variant.Filled" @onclick="Submit" Disabled="@(_loading || !_validInput)">
+                <MudButton ButtonType="ButtonType.Submit" Class="mt-1" Variant="Variant.Filled" Disabled="@(_loading)">
                     @if (_loading)
                     {
                         <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
@@ -37,7 +37,7 @@
                 </MudButton>
             </MudItem>
         </MudGrid>
-    </MudForm>
+    </EditForm>
 </MudPaper>
 
 @if (_estimation != null && _score != null)
@@ -53,14 +53,11 @@
 
 @code {
     private bool _loading;
-    private bool _validInput;
 
     private double? _estimation;
     private Score? _score;
 
-    MudForm? _form;
-    MudTextField<long?>? _scoreId;
-    private string _mode = "osu";
+    private readonly Form _model = new();
 
     [Parameter]
     public long? _paramScoreId { get; set; }
@@ -68,33 +65,40 @@
     [Parameter]
     public string? _paramMode { get; set; }
 
+    private class Form
+    {
+        [Required(ErrorMessage = "Score ID is required!")]
+        public long? ScoreId { get; set; }
+
+        [Required]
+        public string Mode { get; set; } = "osu";
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (_paramScoreId != null)
         {
-            if (_scoreId != null)
-                _scoreId.Value = _paramScoreId.Value;
+            _model.ScoreId = _paramScoreId.Value;
 
             if (_paramMode != null)
             {
-                _mode = _paramMode;
+                _model.Mode = _paramMode;
             }
 
             await LoadScore();
         }
     }
 
-    private async Task Submit()
+    private void Submit(EditContext context)
     {
-        await _form!.Validate();
-
-        Navigation.NavigateTo($"/score/{_scoreId?.Value}/{_mode}");
+        StateHasChanged();
+        Navigation.NavigateTo($"/score/{_model.ScoreId}/{_model.Mode}");
     }
 
     private async Task LoadScore()
     {
         _loading = true;
-        var score = await Http.GetFromJsonAsync<Score>($"osuapi/score/{_paramScoreId ?? _scoreId?.Value}/{_mode}");
+        var score = await Http.GetFromJsonAsync<Score>($"osuapi/score/{_paramScoreId ?? _model.ScoreId}/{_model.Mode}");
 
         if (score != null)
         {

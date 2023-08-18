@@ -46,33 +46,57 @@ namespace UREstimator.Client
             double clockRate = score.Mods.Any(x => x.ToUpper() == "DT") ? 1.5 : score.Mods.Any(x => x.ToUpper() == "HT") ? 0.66 : 1;
 
             double hitWindow300 = 80 - 6 * adjustedOd;
+            double hitWindow100 = (140 - 8 * ((80 - hitWindow300 * clockRate) / 6)) / clockRate;
             double hitWindow50 = (200 - 10 * ((80 - hitWindow300 * clockRate) / 6)) / clockRate;
 
-            int greatCountOnCircles = score.BeatmapShort.CountCircles - score.Statistics.Count100 - score.Statistics.Count50 - score.Statistics.CountMiss;
+            int circleCount = score.BeatmapShort.CountCircles;
+            int missCountCircles = Math.Min(score.Statistics.CountMiss, circleCount);
+            int mehCountCircles = Math.Min(score.Statistics.Count50, circleCount - missCountCircles);
+            int okCountCircles = Math.Min(score.Statistics.Count100, circleCount - missCountCircles - mehCountCircles);
+            int greatCountCircles = Math.Max(0, circleCount - missCountCircles - mehCountCircles - okCountCircles);
 
-            // The probability that a player hits a circle is unknown, but we can estimate it to be
-            // the number of greats on circles divided by the number of circles, and then add one
-            // to the number of circles as a bias correction / bayesian prior.
-            double greatProbabilityCircle = Math.Max(0, greatCountOnCircles / (score.BeatmapShort.CountCircles + 1.0));
-            double greatProbabilitySlider;
-
-            if (greatCountOnCircles < 0)
+            // Assume 100s, 50s, and misses happen on circles. If there are less non-300s on circles than 300s,
+            // compute the deviation on circles.
+            if (greatCountCircles > 0)
             {
-                int nonCircleMisses = -greatCountOnCircles;
-                greatProbabilitySlider = Math.Max(0, (score.BeatmapShort.CountSliders - nonCircleMisses) / (score.BeatmapShort.CountSliders + 1.0));
+                // The probability that a player hits a circle is unknown, but we can estimate it to be
+                // the number of greats on circles divided by the number of circles, and then add one
+                // to the number of circles as a bias correction.
+                double greatProbabilityCircle = greatCountCircles / (circleCount - missCountCircles - mehCountCircles + 1.0);
+
+                // Compute the deviation assuming 300s and 100s are normally distributed, and 50s are uniformly distributed.
+                // Begin with the normal distribution first.
+                double deviationOnCircles = hitWindow300 / (Math.Sqrt(2) * SpecialFunctions.ErfInv(greatProbabilityCircle));
+                deviationOnCircles *= Math.Sqrt(1 - Math.Sqrt(2 / Math.PI) * hitWindow100 * Math.Exp(-0.5 * Math.Pow(hitWindow100 / deviationOnCircles, 2))
+                    / (deviationOnCircles * SpecialFunctions.Erf(hitWindow100 / (Math.Sqrt(2) * deviationOnCircles))));
+
+                // Then compute the variance for 50s.
+                double mehVariance = (hitWindow50 * hitWindow50 + hitWindow100 * hitWindow50 + hitWindow100 * hitWindow100) / 3;
+
+                // Find the total deviation.
+                deviationOnCircles = Math.Sqrt(((greatCountCircles + okCountCircles) * Math.Pow(deviationOnCircles, 2) + mehCountCircles * mehVariance) / (greatCountCircles + okCountCircles + mehCountCircles));
+
+                return deviationOnCircles;
             }
-            else
+
+            // If there are more non-300s than there are circles, compute the deviation on sliders instead.
+            // Here, all that matters is whether or not the slider was missed, since it is impossible
+            // to get a 100 or 50 on a slider by mis-tapping it.
+            int sliderCount = score.BeatmapShort.CountSliders;
+            int missCountSliders = Math.Min(sliderCount, score.Statistics.CountMiss - missCountCircles);
+            int greatCountSliders = sliderCount - missCountSliders;
+
+            // We only get here if nothing was hit. In this case, there is no estimate for deviation.
+            // Note that this is never negative, so checking if this is only equal to 0 makes sense.
+            if (greatCountSliders == 0)
             {
-                greatProbabilitySlider = score.BeatmapShort.CountSliders / (score.BeatmapShort.CountSliders + 1.0);
+                return 0.0;
             }
 
-            if (greatProbabilityCircle == 0 && greatProbabilitySlider == 0)
-                return double.PositiveInfinity;
-
-            double deviationOnCircles = hitWindow300 / (Math.Sqrt(2) * SpecialFunctions.ErfInv(greatProbabilityCircle));
+            double greatProbabilitySlider = greatCountSliders / (sliderCount + 1.0);
             double deviationOnSliders = hitWindow50 / (Math.Sqrt(2) * SpecialFunctions.ErfInv(greatProbabilitySlider));
 
-            return Math.Min(deviationOnCircles, deviationOnSliders);
+            return deviationOnSliders;
         }
 
         private static double CalculateTaikoDeviation(ScoreSlim score)
