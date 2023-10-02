@@ -13,6 +13,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:3001
+      - ApiV2Client=
+      - ApiV2Secret=
     volumes:
       - ./logs/backend:/app/logs
       - ./keys:/root/.aspnet/DataProtection-Keys
