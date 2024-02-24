@@ -29,12 +29,12 @@ namespace UREstimator.Client
 
         public ManiaCalculator(ScoreSlim score)
         {
-            countPerfect = score.Statistics.CountGeki;
+            countPerfect = score.Statistics.CountGeki ?? 0;
             countGreat = score.Statistics.Count300;
-            countGood = score.Statistics.CountKatu;
-            countOk = score.Statistics.Count100;
-            countMeh = score.Statistics.Count50;
-            countMiss = score.Statistics.CountMiss;
+            countGood = score.Statistics.CountKatu ?? 0;
+            countOk = score.Statistics.Count100 ?? 0;
+            countMeh = score.Statistics.Count50 ?? 0;
+            countMiss = score.Statistics.CountMiss ?? 0;
             isLegacyScore = true;
 
             attributes = new ManiaDifficultyAttributes

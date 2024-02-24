@@ -18,7 +18,7 @@ namespace UREstimator.Client
 
         private static double CalculateOsuDeviation(ScoreSlim score)
         {
-            int totalSuccessfulHits = score.Statistics.Count300 + score.Statistics.Count100 + score.Statistics.Count50;
+            int totalSuccessfulHits = score.Statistics.Count300 + score.Statistics.Count100 ?? 0 + score.Statistics.Count50 ?? 0;
             if (totalSuccessfulHits == 0)
                 return double.PositiveInfinity;
 
@@ -50,9 +50,9 @@ namespace UREstimator.Client
             double hitWindow50 = (200 - 10 * ((80 - hitWindow300 * clockRate) / 6)) / clockRate;
 
             int circleCount = score.BeatmapShort.CountCircles;
-            int missCountCircles = Math.Min(score.Statistics.CountMiss, circleCount);
-            int mehCountCircles = Math.Min(score.Statistics.Count50, circleCount - missCountCircles);
-            int okCountCircles = Math.Min(score.Statistics.Count100, circleCount - missCountCircles - mehCountCircles);
+            int missCountCircles = Math.Min(score.Statistics.CountMiss ?? 0, circleCount);
+            int mehCountCircles = Math.Min(score.Statistics.Count50 ?? 0, circleCount - missCountCircles);
+            int okCountCircles = Math.Min(score.Statistics.Count100 ?? 0, circleCount - missCountCircles - mehCountCircles);
             int greatCountCircles = Math.Max(0, circleCount - missCountCircles - mehCountCircles - okCountCircles);
 
             // Assume 100s, 50s, and misses happen on circles. If there are less non-300s on circles than 300s,
@@ -83,7 +83,7 @@ namespace UREstimator.Client
             // Here, all that matters is whether or not the slider was missed, since it is impossible
             // to get a 100 or 50 on a slider by mis-tapping it.
             int sliderCount = score.BeatmapShort.CountSliders;
-            int missCountSliders = Math.Min(sliderCount, score.Statistics.CountMiss - missCountCircles);
+            int missCountSliders = Math.Min(sliderCount, score.Statistics.CountMiss ?? 0 - missCountCircles);
             int greatCountSliders = sliderCount - missCountSliders;
 
             // We only get here if nothing was hit. In this case, there is no estimate for deviation.
@@ -126,7 +126,7 @@ namespace UREstimator.Client
                 h100 = (120.0 - 6.0 * adjustedOd) * multiplier;
             }
 
-            int totalSuccessfulHits = score.Statistics.Count300 + score.Statistics.Count100;
+            int totalSuccessfulHits = score.Statistics.Count300 + score.Statistics.Count100 ?? 0;
             if (totalSuccessfulHits == 0)
                 return double.PositiveInfinity;
 
@@ -144,7 +144,7 @@ namespace UREstimator.Client
 
                 double gradient = Math.Exp(
                     (score.Statistics.Count300 * p300
-                     + (score.Statistics.Count100 + 0.5) * p100) / totalSuccessfulHits
+                     + (score.Statistics.Count100 ?? 0 + 0.5) * p100) / totalSuccessfulHits
                 );
 
                 return -gradient;
